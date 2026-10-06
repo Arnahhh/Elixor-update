@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables (NEVER COMMIT THESE)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# General build outputs
+build/
+dist/
+
+# Prisma local database/cache
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# OS generated files
+.DS_Store
+Thumbs.db

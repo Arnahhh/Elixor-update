@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  role      UserRole
+  createdAt DateTime @default(now())
+
+  doctorProfile       DoctorProfile?
+  patientAppointments Appointment[]  @relation("AppointmentPatient")
+  doctorAppointments  Appointment[]  @relation("AppointmentDoctor")
+
+  @@index([email])
+}
+
+model DoctorProfile {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @unique
+  specialization String   @db.VarChar(255)
+  licenseNo      String   @unique @db.VarChar(100)
+  createdAt      DateTime @default(now())
+
+  user           User           @relation(fields: [userId], references: [id])
+  availabilities Availability[]
+}
+
+model Availability {
+  id        Int      @id @default(autoincrement())
+  doctorId  Int
+  dayOfWeek Int
+  startTime DateTime @db.Time
+  endTime   DateTime @db.Time
+
+  doctor DoctorProfile @relation(fields: [doctorId], references: [id])
+
+  @@index([doctorId])
+}
+
+model Appointment {
+  id              Int                @id @default(autoincrement())
+  patientId       Int
+  doctorId        Int
+  appointmentDate DateTime
+  status          AppointmentStatus
+  createdAt       DateTime           @default(now())
+
+  patient       User           @relation("AppointmentPatient", fields: [patientId], references: [id])
+  doctor        User           @relation("AppointmentDoctor", fields: [doctorId], references: [id])
+  medicalRecord MedicalRecord?
+  payment       Payment?
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([appointmentDate])
+}
+
+model MedicalRecord {
+  id            Int      @id @default(autoincrement())
+  appointmentId Int      @unique
+  diagnosis     String   @db.Text
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  appointment   Appointment    @relation(fields: [appointmentId], references: [id])
+  prescriptions Prescription[]
+  auditLogs     AuditLog[]
+}
+
+model Prescription {
+  id              Int    @id @default(autoincrement())
+  medicalRecordId Int
+  medicineName    String @db.VarChar(255)
+  dosage          String @db.VarChar(100)
+  duration        String @db.VarChar(100)
+
+  medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id])
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  appointmentId Int           @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  status        PaymentStatus
+  paidAt        DateTime?
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+}
+
+model AuditLog {
+  id              Int      @id @default(autoincrement())
+  medicalRecordId Int
+  action          String   @db.VarChar(100)
+  previousHash    String   @db.VarChar(255)
+  currentHash     String   @db.VarChar(255)
+  createdAt       DateTime @default(now())
+
+  medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id])
+
+  @@index([medicalRecordId])
+}
