@@ -74,10 +74,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ wallet_address }),
     }),
-  verify: (wallet_address: string, message: string, signature: string) =>
+  verify: (wallet_address: string, message: string, signature: string, admin_key?: string) =>
     request<{ token: string; user: any }>("/api/auth/verify", {
       method: "POST",
-      body: JSON.stringify({ wallet_address, message, signature }),
+      body: JSON.stringify({ wallet_address, message, signature, admin_key }),
     }),
   getAppointments: () => request<any[]>("/api/appointments"),
   createAppointment: (body: { doctor_id: string; scheduled_at: string; reason?: string }) =>

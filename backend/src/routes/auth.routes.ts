@@ -52,6 +52,7 @@ router.post("/verify", async (req, res) => {
     wallet_address: z.string().regex(WALLET_RE),
     message: z.string(),
     signature: z.string(),
+    admin_key: z.string().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload" });
@@ -89,7 +90,17 @@ router.post("/verify", async (req, res) => {
 
   await supabaseAdmin.from("auth_nonces").update({ consumed_at: new Date().toISOString() }).eq("id", nonceRow.id);
 
-  // 3. Find or create the user (first-time wallets default to 'patient').
+  // Method 2: Admin setup passcode check
+  const providedAdminKey = parsed.data.admin_key?.trim();
+  const wantsAdmin = Boolean(providedAdminKey);
+  if (wantsAdmin) {
+    const expectedKey = process.env.ADMIN_REGISTRATION_KEY;
+    if (!expectedKey || providedAdminKey !== expectedKey) {
+      return res.status(401).json({ error: "Invalid or unauthorized admin registration key" });
+    }
+  }
+
+  // 3. Find or create the user (first-time wallets default to 'patient' unless valid admin_key is supplied).
   let { data: user, error: userErr } = await supabaseAdmin
     .from("users")
     .select("*")
@@ -98,14 +109,30 @@ router.post("/verify", async (req, res) => {
 
   if (userErr) return res.status(500).json({ error: userErr.message });
 
+  const targetRole = wantsAdmin ? "admin" : "patient";
+
   if (!user) {
     const { data: created, error: createErr } = await supabaseAdmin
       .from("users")
-      .insert({ wallet_address: wallet, role: "patient", full_name: `User ${wallet.slice(0, 8)}` })
+      .insert({
+        wallet_address: wallet,
+        role: targetRole,
+        full_name: wantsAdmin ? `Admin ${wallet.slice(0, 8)}` : `User ${wallet.slice(0, 8)}`,
+      })
       .select()
       .single();
     if (createErr) return res.status(500).json({ error: createErr.message });
     user = created;
+  } else if (wantsAdmin && user.role !== "admin") {
+    // Elevate existing user if a valid admin_key was provided
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from("users")
+      .update({ role: "admin" })
+      .eq("id", user.id)
+      .select()
+      .single();
+    if (updateErr) return res.status(500).json({ error: updateErr.message });
+    user = updated;
   }
 
   if (!user.is_active) return res.status(403).json({ error: "Account disabled" });

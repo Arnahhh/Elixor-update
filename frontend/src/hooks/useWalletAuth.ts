@@ -26,7 +26,7 @@ export function useWalletAuth() {
     if (existing) setUser(existing);
   }, []);
 
-  const connectAndSignIn = useCallback(async () => {
+  const connectAndSignIn = useCallback(async (adminKey?: string) => {
     setError(null);
     setLoading(true);
     try {
@@ -40,12 +40,13 @@ export function useWalletAuth() {
       const { message } = await api.getNonce(wallet_address);
       const signature = await signer.signMessage(message);
 
-      const { token, user: authedUser } = await api.verify(wallet_address, message, signature);
+      const { token, user: authedUser } = await api.verify(wallet_address, message, signature, adminKey);
       setToken(token);
       persistUser(authedUser);
       setUser(authedUser);
       return authedUser;
     } catch (e: any) {
+
 
       setError(e.message);
       throw e;
