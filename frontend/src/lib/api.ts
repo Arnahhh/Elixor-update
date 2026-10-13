@@ -13,6 +13,30 @@ export function clearToken() {
   localStorage.removeItem("healthchain_token");
 }
 
+export function getUser(): any | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem("healthchain_user");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setUser(user: any) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("healthchain_user", JSON.stringify(user));
+  }
+}
+
+export function clearAuth() {
+  clearToken();
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("healthchain_user");
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
@@ -25,9 +49,23 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ? JSON.stringify(body.error) : `Request failed: ${res.status}`);
+    throw new Error(body.error ? (typeof body.error === "string" ? body.error : JSON.stringify(body.error)) : `Request failed: ${res.status}`);
   }
   return res.json();
+}
+
+export interface MedicationItem {
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration_days: number;
+}
+
+export interface CreatePrescriptionInput {
+  patient_id: string;
+  appointment_id?: string;
+  medications: MedicationItem[];
+  notes?: string;
 }
 
 export const api = {
@@ -46,6 +84,13 @@ export const api = {
     request("/api/appointments", { method: "POST", body: JSON.stringify(body) }),
   getReports: () => request<any[]>("/api/reports"),
   uploadReport: (form: FormData) => request("/api/reports", { method: "POST", body: form }),
+  getPrescriptions: () => request<any[]>("/api/prescriptions"),
+  createPrescription: (body: CreatePrescriptionInput) =>
+    request<any>("/api/prescriptions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   getAnalytics: () => request<any>("/api/admin/analytics"),
   getDoctorLoad: () => request<any[]>("/api/admin/doctor-load"),
 };
+

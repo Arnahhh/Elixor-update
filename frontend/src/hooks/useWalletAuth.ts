@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { BrowserProvider } from "ethers";
-import { api, setToken } from "../lib/api";
+import { api, setToken, setUser as persistUser, getUser as getPersistedUser } from "../lib/api";
 
 export interface AuthedUser {
   id: string;
@@ -21,6 +21,11 @@ export function useWalletAuth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const existing = getPersistedUser();
+    if (existing) setUser(existing);
+  }, []);
+
   const connectAndSignIn = useCallback(async () => {
     setError(null);
     setLoading(true);
@@ -37,9 +42,11 @@ export function useWalletAuth() {
 
       const { token, user: authedUser } = await api.verify(wallet_address, message, signature);
       setToken(token);
+      persistUser(authedUser);
       setUser(authedUser);
       return authedUser;
     } catch (e: any) {
+
       setError(e.message);
       throw e;
     } finally {
