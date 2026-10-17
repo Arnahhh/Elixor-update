@@ -1,4 +1,5 @@
-import { Contract, JsonRpcProvider, Wallet, id, keccak256, toUtf8Bytes } from "ethers";
+
+import { Contract, JsonRpcProvider, Wallet, id } from "ethers";
 import { createHash } from "crypto";
 import { supabaseAdmin } from "../config/supabase.js";
 
@@ -9,55 +10,93 @@ const ABI = [
 ];
 
 function getContract() {
-  const provider = new JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
-  const signer = new Wallet(process.env.AUDIT_SIGNER_PRIVATE_KEY!, provider);
-  return new Contract(process.env.AUDIT_CONTRACT_ADDRESS!, ABI, signer);
+  const rpcUrl = process.env.SEPOLIA_RPC_URL;
+  const privateKey = process.env.AUDIT_SIGNER_PRIVATE_KEY;
+  const contractAddress = process.env.AUDIT_CONTRACT_ADDRESS;
+
+  if (!rpcUrl) {
+    throw new Error("Missing SEPOLIA_RPC_URL environment variable");
+  }
+
+  if (!privateKey) {
+    throw new Error("Missing AUDIT_SIGNER_PRIVATE_KEY environment variable");
+  }
+
+  if (!contractAddress) {
+    throw new Error("Missing AUDIT_CONTRACT_ADDRESS environment variable");
+  }
+
+  const provider = new JsonRpcProvider(rpcUrl);
+  const signer = new Wallet(privateKey, provider);
+
+  return new Contract(contractAddress, ABI, signer);
 }
 
-/** sha256 of a file buffer — this is what gets stored in medical_reports.file_hash */
+/**
+ * Calculate the SHA-256 hash of a file buffer.
+ * The hash can be stored with the off-chain medical report.
+ */
 export function sha256Hex(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
 /**
- * WORKFLOW 3 — BLOCKCHAIN MEDICAL AUDIT
+ * Anchor a medical report or prescription hash on Sepolia.
  *
- * Medical report uploaded -> sha256 hash computed -> hash anchored on
- * Sepolia via MedicalAudit.anchorRecord() -> tx hash + block number stored
- * in blockchain_transactions -> anyone (patient, doctor, auditor) can later
- * recompute the file hash and call verifyRecord() to prove the document
- * hasn't been altered since it was uploaded.
+ * The document itself is not stored on-chain.
+ * Existing blockchain_transactions database operations are preserved.
  */
 export async function anchorHashOnChain(params: {
-  recordId: string; // uuid of the report or prescription row
-  fileHashHex: string; // sha256 hex digest (already computed)
+  recordId: string;
+  fileHashHex: string;
   recordType: "report" | "prescription";
 }) {
   const { recordId, fileHashHex, recordType } = params;
 
-  const targetColumn = recordType === "report" ? "report_id" : "prescription_id";
+  // Validate the hash before interacting with the database or blockchain.
+  if (!/^[0-9a-fA-F]{64}$/.test(fileHashHex)) {
+    throw new Error("Invalid file hash: expected a 64-character SHA-256 hex digest");
+  }
+
+  const targetColumn =
+    recordType === "report" ? "report_id" : "prescription_id";
+
   const { data: txRow, error: insertErr } = await supabaseAdmin
     .from("blockchain_transactions")
     .insert({
       [targetColumn]: recordId,
       chain: "sepolia",
-      tx_hash: `pending-${recordId}-${Date.now()}`, // placeholder until confirmed, replaced below
+      tx_hash: `pending-${recordId}-${Date.now()}`,
       data_hash: fileHashHex,
       status: "pending",
     })
     .select()
     .single();
-  if (insertErr) throw insertErr;
+
+  if (insertErr) {
+    throw insertErr;
+  }
 
   try {
     const contract = getContract();
-    const recordIdBytes32 = id(recordId); // keccak256 of the uuid string -> bytes32
+
+    // Convert the UUID string to a deterministic bytes32 identifier.
+    const recordIdBytes32 = id(recordId);
     const dataHashBytes32 = `0x${fileHashHex}`;
 
-    const tx = await contract.anchorRecord(recordIdBytes32, dataHashBytes32, recordType);
+    const tx = await contract.anchorRecord(
+      recordIdBytes32,
+      dataHashBytes32,
+      recordType
+    );
+
     const receipt = await tx.wait();
 
-    await supabaseAdmin
+    if (!receipt || receipt.status !== 1) {
+      throw new Error("Blockchain transaction was not confirmed successfully");
+    }
+
+    const { error: updateErr } = await supabaseAdmin
       .from("blockchain_transactions")
       .update({
         tx_hash: receipt.hash,
@@ -68,16 +107,39 @@ export async function anchorHashOnChain(params: {
       })
       .eq("id", txRow.id);
 
-    return { txHash: receipt.hash, blockNumber: receipt.blockNumber };
+    if (updateErr) {
+      throw updateErr;
+    }
+
+    return {
+      txHash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+    };
   } catch (err) {
-    await supabaseAdmin.from("blockchain_transactions").update({ status: "failed" }).eq("id", txRow.id);
+    // Preserve the existing failed-transaction status update.
+    await supabaseAdmin
+      .from("blockchain_transactions")
+      .update({ status: "failed" })
+      .eq("id", txRow.id);
+
     throw err;
   }
 }
 
-/** Recompute a file's hash and check it still matches what's on-chain. */
-export async function verifyOnChain(recordId: string, fileHashHex: string): Promise<boolean> {
+/**
+ * Verify that a file's SHA-256 hash matches its on-chain record.
+ */
+export async function verifyOnChain(
+  recordId: string,
+  fileHashHex: string
+): Promise<boolean> {
+  if (!/^[0-9a-fA-F]{64}$/.test(fileHashHex)) {
+    throw new Error("Invalid file hash: expected a 64-character SHA-256 hex digest");
+  }
+
   const contract = getContract();
   const recordIdBytes32 = id(recordId);
-  return contract.verifyRecord(recordIdBytes32, `0x${fileHashHex}`);
+  const dataHashBytes32 = `0x${fileHashHex}`;
+
+  return contract.verifyRecord(recordIdBytes32, dataHashBytes32);
 }
