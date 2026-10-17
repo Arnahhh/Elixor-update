@@ -1,92 +1,145 @@
-import OpenAI from "openai";
 import { supabaseAdmin } from "../config/supabase.js";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "text-embedding-3-small";
-const CHAT_MODEL = process.env.CHAT_MODEL || "gpt-4o-mini";
+const OLLAMA_URL =
+  process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
-/**
- * WORKFLOW 2 — AI MEDICAL ANALYSIS (RAG)
- *
- * 1. Extraction: report text (already OCR'd/parsed into medical_reports.raw_text)
- * 2. Embed the new report's text.
- * 3. Retrieve: pgvector similarity search over ai_analyses.embedding for the
- *    SAME patient's prior reports, giving the model longitudinal context
- *    (e.g. "cholesterol was already borderline 3 months ago").
- * 4. Generate: chat completion grounded in the report text + retrieved
- *    context, constrained to return structured JSON findings.
- * 5. Persist: store summary + findings + embedding in ai_analyses so future
- *    reports for this patient can retrieve THIS one.
- */
+const LOCAL_CHAT_MODEL =
+  process.env.LOCAL_CHAT_MODEL || "qwen2.5:1.5b-instruct";
 
-async function embed(text: string): Promise<number[]> {
-  const res = await openai.embeddings.create({ model: EMBEDDING_MODEL, input: text });
-  return res.data[0].embedding;
+type AnalysisResult = {
+  summary: string;
+  flags: string[];
+  severity: "low" | "moderate" | "high";
+  recommendation: string;
+  confidence: number;
+};
+
+async function generateLocalAnalysis(
+  reportText: string
+): Promise<AnalysisResult> {
+  const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: LOCAL_CHAT_MODEL,
+      stream: false,
+      format: "json",
+      options: {
+        temperature: 0.2,
+      },
+      messages: [
+        {
+          role: "system",
+          content: `You summarize medical reports for a doctor to review.
+Do not diagnose, prescribe medication, or invent findings.
+Return only a JSON object with exactly these fields:
+{
+  "summary": "brief report summary",
+  "flags": ["specific findings supported by the report"],
+  "severity": "low",
+  "recommendation": "appropriate next step for clinician review",
+  "confidence": 0.5
 }
-
-async function retrieveSimilarPastAnalyses(patientId: string, queryEmbedding: number[], limit = 3) {
-  // pgvector cosine-distance search, scoped to this patient's own reports.
-  const { data, error } = await supabaseAdmin.rpc("match_patient_analyses", {
-    p_patient_id: patientId,
-    p_query_embedding: queryEmbedding,
-    p_match_count: limit,
+severity must be exactly one of: low, moderate, high.
+confidence must be a number between 0 and 1.
+Use an empty flags array if no specific flags are supported.
+If the report is unclear or insufficient, explicitly say so.
+A licensed clinician must review the result.`,
+        },
+        {
+          role: "user",
+          content: `Summarize this medical report for clinician review:\n\n${reportText}`,
+        },
+      ],
+    }),
   });
-  if (error) {
-    console.warn("Retrieval RPC failed, continuing without prior context:", error.message);
-    return [];
+
+  if (!response.ok) {
+    throw new Error(
+      `Local AI request failed (${response.status}). Check that Ollama is running and the model "${LOCAL_CHAT_MODEL}" is available.`
+    );
   }
-  return data ?? [];
-}
 
-export async function analyzeReport(params: { reportId: string; patientId: string; reportText: string }) {
-  const { reportId, patientId, reportText } = params;
-
-  const queryEmbedding = await embed(reportText);
-  const priorContext = await retrieveSimilarPastAnalyses(patientId, queryEmbedding);
-
-  const contextBlock = priorContext.length
-    ? priorContext.map((c: any, i: number) => `Prior report ${i + 1} summary: ${c.summary}`).join("\n")
-    : "No prior reports on file for this patient.";
-
-  const systemPrompt = `You are a clinical-decision-support assistant. You analyze structured/unstructured
-medical report text and produce a concise, cautious summary for a licensed doctor to review — you do NOT
-diagnose or prescribe. Always include a "recommendation" to consult the treating physician. Respond ONLY
-with JSON matching: {"summary": string, "flags": string[], "severity": "low"|"moderate"|"high", "recommendation": string, "confidence": number between 0 and 1}`;
-
-  const userPrompt = `Patient's longitudinal context:\n${contextBlock}\n\nNew report text:\n${reportText}`;
-
-  const completion = await openai.chat.completions.create({
-    model: CHAT_MODEL,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.2,
-  });
-
-  const raw = completion.choices[0].message.content ?? "{}";
-  const parsed = JSON.parse(raw) as {
-    summary: string;
-    flags: string[];
-    severity: string;
-    recommendation: string;
-    confidence: number;
+  const result = (await response.json()) as {
+    message?: {
+      content?: string;
+    };
   };
 
+  const content = result.message?.content;
+
+  if (!content) {
+    throw new Error("Local AI returned an empty response.");
+  }
+
+  let parsed: AnalysisResult;
+
+  try {
+    parsed = JSON.parse(content) as AnalysisResult;
+  } catch {
+    throw new Error("Local AI returned invalid JSON. Please try again.");
+  }
+
+  if (
+    typeof parsed.summary !== "string" ||
+    !Array.isArray(parsed.flags) ||
+    !parsed.flags.every((flag) => typeof flag === "string") ||
+    !["low", "moderate", "high"].includes(parsed.severity) ||
+    typeof parsed.recommendation !== "string" ||
+    typeof parsed.confidence !== "number" ||
+    !Number.isFinite(parsed.confidence)
+  ) {
+    throw new Error("Local AI returned an unexpected response format.");
+  }
+
+  parsed.confidence = Math.max(
+    0,
+    Math.min(1, parsed.confidence)
+  );
+
+  return parsed;
+}
+
+export async function analyzeReport(params: {
+  reportId: string;
+  patientId: string;
+  reportText: string;
+}) {
+  const { reportId, reportText } = params;
+
+  if (!reportText.trim()) {
+    throw new Error("Report text cannot be empty.");
+  }
+
+  // Generate the analysis locally using Ollama.
+  // No OpenAI API call or embedding model is used.
+  const parsed = await generateLocalAnalysis(reportText);
+
+  // Preserve the existing table and insert workflow.
+  // No database schema changes are made.
   const { data: saved, error } = await supabaseAdmin
     .from("ai_analyses")
     .insert({
       report_id: reportId,
       summary: parsed.summary,
-      findings: { flags: parsed.flags, severity: parsed.severity, recommendation: parsed.recommendation },
-      embedding: queryEmbedding,
-      model_used: CHAT_MODEL,
+      findings: {
+        flags: parsed.flags,
+        severity: parsed.severity,
+        recommendation: parsed.recommendation,
+      },
+      model_used: LOCAL_CHAT_MODEL,
       confidence: parsed.confidence,
     })
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(
+      `Local AI analysis completed, but saving the result failed: ${error.message}`
+    );
+  }
+
   return saved;
 }
