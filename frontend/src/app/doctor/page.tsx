@@ -191,7 +191,7 @@ export default function DoctorDashboard() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold mb-3">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              <span>Licensed Healthcare Provider · EIP-4361 Verified</span>
+              <span>Licensed Healthcare Provider · Secure Provider Portal</span>
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black bg-gradient-to-r from-blue-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">
               Welcome back, Dr. {user?.full_name?.split(" ").slice(-1)[0] || "Doctor"} ⚕️

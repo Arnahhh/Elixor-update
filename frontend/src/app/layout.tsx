@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "HealthChain — Decentralized AI & Blockchain Healthcare Ecosystem",
+  title: "ELIXOR — AI-Assisted Healthcare & Blockchain Audit",
   description: "Web3 wallet identity, cryptographic document audit trails on Ethereum Sepolia, and AI-powered clinical decision support.",
 };
 

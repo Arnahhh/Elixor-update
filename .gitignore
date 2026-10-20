@@ -9,3 +9,11 @@ artifacts/
 cache/
 typechain-types/
 .DS_Store
+
+# Keep environment secrets out of GitHub
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example

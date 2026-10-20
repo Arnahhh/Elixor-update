@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWalletAuth } from "../hooks/useWalletAuth";
 
 export default function LoginPage() {
-  const { connectAndSignIn, connectWithBurnerWallet, loginWithDemoRole, loading, error } = useWalletAuth();
-  const [showAdminInput, setShowAdminInput] = useState(false);
-  const [adminKey, setAdminKey] = useState("");
+  const { loginWithDemoRole, loading, error } = useWalletAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
 
@@ -16,18 +14,6 @@ export default function LoginPage() {
     if (user.role === "doctor") router.push("/doctor");
     else if (user.role === "admin") router.push("/admin");
     else router.push("/patient");
-  };
-
-  const handleConnect = async () => {
-    const keyToPass = showAdminInput && adminKey.trim() ? adminKey.trim() : undefined;
-    const user = await connectAndSignIn(keyToPass).catch(() => null);
-    handleRoute(user);
-  };
-
-  const handleBurnerLogin = async () => {
-    const keyToPass = showAdminInput && adminKey.trim() ? adminKey.trim() : undefined;
-    const user = await connectWithBurnerWallet(keyToPass).catch(() => null);
-    handleRoute(user);
   };
 
   const handleDemoLogin = async (role: "patient" | "doctor" | "admin") => {
@@ -58,14 +44,6 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleConnect}
-              disabled={loading}
-              className="hidden sm:inline-flex text-xs font-semibold px-4 py-2 rounded-xl bg-gradient-to-r from-purple-800 via-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white shadow-md hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50"
-            >
-              {loading ? "Authenticating..." : "Connect Wallet 🦊"}
-            </button>
-
             {/* Mobile Hamburger Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -91,12 +69,6 @@ export default function LoginPage() {
             <a href="#architecture" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">Architecture</a>
             <a href="#security" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">Security</a>
             <a href="#faqs" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">FAQs</a>
-            <button
-              onClick={() => { setMobileMenuOpen(false); handleConnect(); }}
-              className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-purple-800 to-blue-500 text-white font-semibold text-xs shadow-md"
-            >
-              Connect Wallet 🦊
-            </button>
           </div>
         )}
       </nav>
@@ -106,7 +78,7 @@ export default function LoginPage() {
         {/* Top Announcement Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold mb-6 shadow-sm backdrop-blur-sm animate-pulse-slow">
           <span className="flex h-2 w-2 rounded-full bg-purple-400"></span>
-          <span>Web3 Identity · Zero-Knowledge Audit · In-Database RAG</span>
+          <span>Secure Healthcare Records · AI Assistance · Blockchain Audit</span>
         </div>
 
         {/* Hero Headlines */}
@@ -122,44 +94,18 @@ export default function LoginPage() {
             </span>
           </h1>
           <p className="text-sm sm:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-            Secured by Ethereum wallet challenge authentication, smart contract document anchoring on Sepolia, and longitudinal AI clinical decision support.
+            Manage appointments and medical documents with role-based access, AI-assisted review, and tamper-evident blockchain auditing.
           </p>
         </div>
 
         {/* Auth Centerpiece Card */}
         <div className="w-full max-w-lg glass-card rounded-3xl p-6 sm:p-8 border border-zinc-800/80 shadow-2xl backdrop-blur-2xl hover:border-purple-500/40 transition-all duration-500 space-y-6">
           <div className="text-center">
-            <h2 className="text-xl font-bold text-white tracking-tight">Access HealthChain</h2>
-            <p className="text-xs text-zinc-400 mt-1">Cryptographic challenge verification · No passwords required</p>
+            <h2 className="text-xl font-bold text-white tracking-tight">Access ELIXOR</h2>
+            <p className="text-xs text-zinc-400 mt-1">Choose your role to open the demonstration portal</p>
           </div>
 
-          {/* Primary MetaMask Option */}
-          <button
-            onClick={handleConnect}
-            disabled={loading}
-            className="w-full rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-500 hover:from-purple-600 hover:to-blue-400 text-white font-semibold py-3.5 px-6 shadow-xl shadow-purple-900/30 hover:shadow-purple-700/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-3 text-sm disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <span className="animate-spin text-base">⏳</span>
-                <span>Authenticating with Wallet...</span>
-              </>
-            ) : (
-              <>
-                <span className="text-base">🦊</span>
-                <span>Connect MetaMask &amp; Sign In</span>
-              </>
-            )}
-          </button>
-
-          {/* Divider */}
-          <div className="relative flex items-center justify-center my-2">
-            <div className="border-t border-zinc-800 w-full"></div>
-            <span className="bg-[#030712] px-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-widest whitespace-nowrap">
-              Or Explore Without An Extension
-            </span>
-          </div>
-
+          {/* Role-based application access: no browser wallet required */}
           {/* 1-Click Interactive Demo Profiles */}
           <div className="space-y-2.5">
             <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider text-center">
@@ -201,16 +147,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* In-Browser Burner Wallet Button */}
-          <button
-            type="button"
-            disabled={loading}
-            onClick={handleBurnerLogin}
-            className="w-full rounded-2xl border border-zinc-700/80 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 hover:text-white py-2.5 px-4 text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:border-zinc-500 disabled:opacity-50"
-          >
-            <span>⚡ Launch Instant Demo Session (In-Browser Web3 Keypair)</span>
-          </button>
-
           {/* Error Message */}
           {error && (
             <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-xs text-center font-medium animate-in fade-in">
@@ -218,35 +154,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Collapsible Admin Setup Passcode Section */}
-          <div className="border-t border-zinc-800/80 pt-3">
-            <button
-              type="button"
-              onClick={() => setShowAdminInput(!showAdminInput)}
-              className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors flex items-center justify-between w-full font-medium py-1"
-            >
-              <span>🔐 Authorized Facility &amp; Administrator Passcode</span>
-              <span className="text-[11px] text-purple-400 font-semibold">{showAdminInput ? "Hide ▲" : "Enter Passcode ▼"}</span>
-            </button>
-
-            {showAdminInput && (
-              <div className="mt-3 p-3.5 bg-zinc-950/60 border border-zinc-800 rounded-2xl space-y-2 text-xs">
-                <label className="block font-semibold text-zinc-300">
-                  Security Passcode:
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter administrator authorization token"
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                  className="w-full glass-input rounded-xl p-2.5 text-xs bg-zinc-900/80 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-                <p className="text-[11px] text-zinc-400">
-                  Authorizes administrator permissions on database session tokens for cross-facility metrics.
-                </p>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Section 1: Core Architectural Pillars (#features) */}
@@ -261,9 +168,9 @@ export default function LoginPage() {
               <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
                 🔑
               </div>
-              <h3 className="text-base font-bold text-white mb-2">Passwordless Web3 Identity</h3>
+              <h3 className="text-base font-bold text-white mb-2">Role-Based Secure Access</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Users authenticate using their Ethereum public address via EIP-4361 cryptographic challenge nonces. Passwords and credentials never cross the wire.
+                Patients, doctors, and administrators enter their role-specific demo portal. Blockchain signing is handled separately from ordinary patient and doctor access.
               </p>
             </div>
 
@@ -293,7 +200,7 @@ export default function LoginPage() {
         <section id="workflows" className="w-full mt-24 scroll-mt-24">
           <div className="text-center mb-12">
             <h2 className="text-xs font-bold uppercase tracking-widest text-blue-400 mb-2">End-to-End Execution Flow</h2>
-            <p className="text-2xl sm:text-3xl font-black text-white">How HealthChain Operates</p>
+            <p className="text-2xl sm:text-3xl font-black text-white">How ELIXOR Operates</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -354,7 +261,7 @@ export default function LoginPage() {
                 <span>🛡️</span> Zero-Knowledge Verification
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Publishing raw medical reports on a public blockchain violates HIPAA and GDPR standards. HealthChain anchors only fixed 32-byte mathematical hashes, enabling public verification of document integrity without revealing patient names or diagnoses.
+                Publishing raw medical reports on a public blockchain violates HIPAA and GDPR standards. ELIXOR anchors only fixed 32-byte mathematical hashes, enabling public verification of document integrity without revealing patient names or diagnoses.
               </p>
             </div>
 
@@ -416,7 +323,7 @@ export default function LoginPage() {
               <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
                 🩺
               </div>
-              <span className="font-bold text-zinc-200">HealthChain Platform</span>
+              <span className="font-bold text-zinc-200">ELIXOR Platform</span>
             </div>
             <span className="hidden sm:inline">·</span>
             <span>Decentralized Healthcare Management Infrastructure</span>

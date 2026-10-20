@@ -148,6 +148,12 @@ router.post("/verify", async (req, res) => {
  * Allows testing as Patient, Doctor, or Admin without needing a browser extension.
  */
 router.post("/demo", async (req, res) => {
+  // This passwordless role switch is strictly for a local classroom demo.
+  // Never expose demo impersonation in a deployed environment.
+  if (process.env.NODE_ENV !== "development") {
+    return res.status(404).json({ error: "Demo login is only available in development mode" });
+  }
+
   const schema = z.object({
     role: z.enum(["patient", "doctor", "admin"]).default("patient"),
   });
@@ -156,22 +162,23 @@ router.post("/demo", async (req, res) => {
 
   const role = parsed.data.role;
 
-  // Look for existing user with this role (e.g. from seed.sql)
+  // Use only deterministic demo identities. Never issue a demo token for an
+  // arbitrary real user just because that user has the requested role.
+  const demoWallets: Record<string, string> = {
+    admin: "0x111111111111111111111111111111111111aaaa",
+    doctor: "0x222222222222222222222222222222222222bbbb",
+    patient: "0x333333333333333333333333333333333333cccc",
+  };
+
   let { data: user, error: userErr } = await supabaseAdmin
     .from("users")
     .select("*")
-    .eq("role", role)
-    .limit(1)
+    .eq("wallet_address", demoWallets[role])
     .maybeSingle();
 
   if (userErr) return res.status(500).json({ error: userErr.message });
 
   if (!user) {
-    const demoWallets: Record<string, string> = {
-      admin: "0x111111111111111111111111111111111111aaaa",
-      doctor: "0x222222222222222222222222222222222222bbbb",
-      patient: "0x333333333333333333333333333333333333cccc",
-    };
     const demoNames: Record<string, string> = {
       admin: "Alice Admin (Demo)",
       doctor: "Dr. Bob Rao (Demo)",

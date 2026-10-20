@@ -48,10 +48,10 @@ export default function DashboardHeader({ role, walletAddress, fullName }: Dashb
             </div>
             <div>
               <span className="font-extrabold text-base tracking-wider text-white group-hover:text-purple-400 transition-colors">
-                HEALTHCHAIN
+                ELIXOR
               </span>
               <span className="block text-[10px] font-mono text-zinc-400 -mt-0.5 tracking-tight">
-                AI &amp; WEB3 HEALTHCARE
+                AI-ASSISTED HEALTHCARE
               </span>
             </div>
           </Link>
@@ -77,24 +77,14 @@ export default function DashboardHeader({ role, walletAddress, fullName }: Dashb
             </span>
           )}
 
-          {walletAddress && (
-            <button
-              onClick={copyWallet}
-              title="Click to copy wallet address"
-              className="font-mono text-xs px-3 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 flex items-center gap-2 transition-all"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              <span className="text-zinc-300">{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</span>
-              <span className="text-[10px] text-zinc-500">{copied ? "✓ Copied" : "📋"}</span>
-            </button>
-          )}
+
 
           <Link
             href="/"
             onClick={() => clearAuth()}
             className="text-xs font-semibold px-3.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 transition-all duration-200 flex items-center gap-1.5"
           >
-            <span>Disconnect</span>
+            <span>Sign out</span>
             <span>⏻</span>
           </Link>
         </div>

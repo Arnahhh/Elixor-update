@@ -163,7 +163,7 @@ export default function PatientDashboard() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-3">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Decentralized Health Records · Protected by ZK Proofs</span>
+              <span>Private Health Records · Audit-Ready</span>
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black bg-gradient-to-r from-blue-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">
               Welcome back, {user?.full_name?.split(" ")[0] || "Patient"} 👋
