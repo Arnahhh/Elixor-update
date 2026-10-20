@@ -92,5 +92,10 @@ export const api = {
     }),
   getAnalytics: () => request<any>("/api/admin/analytics"),
   getDoctorLoad: () => request<any[]>("/api/admin/doctor-load"),
+  demoLogin: (role: "patient" | "doctor" | "admin") =>
+    request<{ token: string; user: any }>("/api/auth/demo", {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
 };
 

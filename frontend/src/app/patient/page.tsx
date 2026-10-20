@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { api, getUser, clearAuth, MedicationItem } from "../../lib/api";
+import { api, getUser, MedicationItem } from "../../lib/api";
+import DashboardHeader from "../../components/DashboardHeader";
 
 interface PrescriptionRecord {
   id: string;
@@ -19,21 +19,65 @@ interface PrescriptionRecord {
   }[];
 }
 
+function SkeletonCard() {
+  return (
+    <div className="glass-card rounded-2xl p-5 border border-zinc-800/80 animate-pulse space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="h-3 w-24 bg-zinc-800 rounded-full" />
+        <div className="h-8 w-8 bg-zinc-800 rounded-xl" />
+      </div>
+      <div className="h-8 w-16 bg-zinc-800 rounded-lg" />
+      <div className="h-2.5 w-28 bg-zinc-800 rounded-full" />
+    </div>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="p-10 flex flex-col items-center gap-3 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-2xl">
+        {icon}
+      </div>
+      <p className="text-sm font-semibold text-zinc-300">{title}</p>
+      <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">{subtitle}</p>
+    </div>
+  );
+}
+
 export default function PatientDashboard() {
   const [user, setUser] = useState<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     const authed = getUser();
     if (authed) setUser(authed);
 
-    api.getAppointments().then(setAppointments).catch(console.error);
-    api.getReports().then(setReports).catch(console.error);
-    api.getPrescriptions().then(setPrescriptions).catch(console.error);
+    Promise.allSettled([
+      api.getAppointments(),
+      api.getReports(),
+      api.getPrescriptions(),
+    ]).then(([appts, rpts, presc]) => {
+      if (appts.status === "fulfilled") setAppointments(appts.value);
+      if (rpts.status === "fulfilled") setReports(rpts.value);
+      if (presc.status === "fulfilled") setPrescriptions(presc.value);
+      setLoading(false);
+    });
   }, []);
 
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -43,256 +87,534 @@ export default function PatientDashboard() {
     const form = new FormData(e.currentTarget);
     try {
       await api.uploadReport(form);
-      setReports(await api.getReports());
-      setUploadMessage("Report successfully uploaded, analyzed, and anchored on Sepolia!");
+      const updatedReports = await api.getReports();
+      setReports(updatedReports);
+      setUploadMessage({
+        type: "success",
+        text: "Report uploaded, analyzed by AI, and anchored on Sepolia. You can view the AI summary below.",
+      });
       e.currentTarget.reset();
     } catch (err: any) {
       console.error(err);
-      setUploadMessage(`Upload failed: ${err.message}`);
+      setUploadMessage({
+        type: "error",
+        text: err.message ?? "Upload failed. Please try again.",
+      });
     } finally {
       setUploading(false);
     }
   };
 
+  const statCards = [
+    {
+      label: "Appointments",
+      value: appointments.length,
+      sub: "Scheduled visits",
+      icon: "📅",
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
+      border: "border-blue-500/20",
+      hoverBorder: "hover:border-blue-500/40",
+    },
+    {
+      label: "Prescriptions",
+      value: prescriptions.length,
+      sub: "Active medications",
+      icon: "💊",
+      color: "text-purple-400",
+      bg: "bg-purple-500/10",
+      border: "border-purple-500/20",
+      hoverBorder: "hover:border-purple-500/40",
+    },
+    {
+      label: "Reports",
+      value: reports.length,
+      sub: "AI-analyzed files",
+      icon: "📑",
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20",
+      hoverBorder: "hover:border-emerald-500/40",
+    },
+    {
+      label: "Audit Trail",
+      value: "Sepolia",
+      sub: "100% tamper-proof",
+      icon: "⛓️",
+      color: "text-pink-400",
+      bg: "bg-pink-500/10",
+      border: "border-pink-500/20",
+      hoverBorder: "hover:border-pink-500/40",
+    },
+  ];
+
   return (
-    <main className="max-w-4xl mx-auto p-6 space-y-8">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-900">Patient Dashboard</h1>
-            <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
-              Verified Patient
-            </span>
+    <div className="min-h-screen bg-[#030712] text-zinc-100 p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-8">
+      <DashboardHeader
+        role="patient"
+        walletAddress={user?.wallet_address}
+        fullName={user?.full_name}
+      />
+
+      {/* Welcome Banner */}
+      <div className="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/5 border border-purple-500/30 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(147,51,234,0.08),transparent_60%)] pointer-events-none" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Decentralized Health Records · Protected by ZK Proofs</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black bg-gradient-to-r from-blue-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">
+              Welcome back, {user?.full_name?.split(" ")[0] || "Patient"} 👋
+            </h1>
+            <p className="text-zinc-400 text-sm mt-2 max-w-xl leading-relaxed">
+              View your appointments, prescriptions, and AI-analyzed medical
+              reports — all cryptographically anchored on Ethereum Sepolia.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1 font-mono">
-            {user?.wallet_address ? `Wallet: ${user.wallet_address}` : "Authenticated via Ethereum Wallet"}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            onClick={() => clearAuth()}
-            className="text-xs text-slate-600 hover:text-red-600 px-3 py-1.5 rounded border border-slate-300 hover:border-red-300 transition"
-          >
-            Disconnect
-          </Link>
+          <div className="hidden md:flex items-center justify-center w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-3xl flex-shrink-0">
+            🩺
+          </div>
         </div>
       </div>
 
-      {/* Upcoming Appointments */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-800">Upcoming Appointments</h2>
-        <ul className="divide-y rounded-xl border border-slate-200 bg-white shadow-sm">
-          {appointments.map((a) => (
-            <li key={a.appointment_id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-2">
-              <div>
-                <span className="font-semibold text-slate-900">{a.doctor_name}</span>
-                <span className="text-slate-500 ml-2">({a.specialization})</span>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          : statCards.map((s, idx) => (
+              <div
+                key={idx}
+                className={`glass-card rounded-2xl p-5 border border-zinc-800/80 ${s.hoverBorder} transition-all duration-300 group`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider leading-tight">
+                    {s.label}
+                  </span>
+                  <div
+                    className={`w-9 h-9 rounded-xl ${s.bg} border ${s.border} ${s.color} flex items-center justify-center text-sm group-hover:scale-110 transition-transform flex-shrink-0`}
+                  >
+                    {s.icon}
+                  </div>
+                </div>
+                <p className={`text-2xl sm:text-3xl font-extrabold ${s.color}`}>
+                  {s.value}
+                </p>
+                <span className="text-[11px] text-zinc-500 mt-1 block">
+                  {s.sub}
+                </span>
               </div>
-              <span className="text-slate-500 text-xs">
-                {new Date(a.scheduled_at).toLocaleString()} · <span className="capitalize">{a.appointment_status}</span>
-              </span>
-            </li>
-          ))}
-          {appointments.length === 0 && <li className="p-4 text-slate-400 text-sm">No upcoming appointments.</li>}
-        </ul>
-      </section>
+            ))}
+      </div>
 
-      {/* My Prescriptions Section */}
-      <section className="space-y-3">
+      {/* Upcoming Appointments */}
+      <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <span>💊 My Prescriptions</span>
-            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
-              Blockchain Verified
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center text-sm">
+              📅
             </span>
+            Appointments
           </h2>
-          <span className="text-xs text-slate-500">{prescriptions.length} record(s)</span>
+          <span className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full font-medium">
+            {appointments.length} scheduled
+          </span>
         </div>
 
-        <div className="space-y-3">
-          {prescriptions.map((p) => {
-            const txHash = p.blockchain_transactions?.[0]?.tx_hash;
-            return (
-              <div
-                key={p.id}
-                className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">
-                    Prescribed on: <span className="font-semibold text-slate-800">{new Date(p.issued_at).toLocaleDateString()}</span>
-                  </span>
-                  <span className="text-[11px] font-mono text-slate-400">
-                    ID: {p.id.slice(0, 13)}...
-                  </span>
+        <div className="glass-card rounded-2xl border border-zinc-800/80 divide-y divide-zinc-800/60 overflow-hidden shadow-xl">
+          {loading ? (
+            <div className="p-6 space-y-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex items-center justify-between animate-pulse">
+                  <div className="space-y-2">
+                    <div className="h-3.5 w-32 bg-zinc-800 rounded-full" />
+                    <div className="h-2.5 w-48 bg-zinc-800 rounded-full" />
+                  </div>
+                  <div className="h-6 w-20 bg-zinc-800 rounded-full" />
                 </div>
-
-                {/* Medications List */}
+              ))}
+            </div>
+          ) : appointments.length === 0 ? (
+            <EmptyState
+              icon="📅"
+              title="No upcoming appointments"
+              subtitle="Your scheduled visits with doctors will appear here once booked."
+            />
+          ) : (
+            appointments.map((a) => (
+              <div
+                key={a.appointment_id}
+                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-900/40 transition-colors"
+              >
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Prescribed Medications:
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-bold text-white text-sm">
+                      {a.doctor_name}
+                    </span>
+                    {a.specialization && (
+                      <span className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full font-medium">
+                        {a.specialization}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    {new Date(a.scheduled_at).toLocaleString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.isArray(p.medications) ? (
-                      p.medications.map((m, idx) => (
-                        <div
-                          key={idx}
-                          className="px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs"
-                        >
-                          <span className="font-bold text-indigo-950">{m.name}</span>
-                          <span className="text-slate-600 ml-1 font-medium">({m.dosage})</span>
-                          <span className="text-indigo-700 ml-1.5">· {m.frequency}</span>
-                          <span className="text-slate-500 ml-1.5">[{m.duration_days} days]</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-xs text-slate-400">No medication data</span>
+                </div>
+                <span
+                  className={`self-start sm:self-auto text-xs px-3 py-1 rounded-full font-semibold capitalize border ${
+                    a.appointment_status === "confirmed"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                      : a.appointment_status === "completed"
+                      ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                      : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                  }`}
+                >
+                  {a.appointment_status}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Prescriptions */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center text-sm">
+              💊
+            </span>
+            Prescriptions
+            <span className="text-xs bg-purple-500/10 text-purple-400 border border-purple-500/30 px-2.5 py-0.5 rounded-full font-semibold">
+              Sepolia Verified
+            </span>
+          </h2>
+          <span className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full font-medium">
+            {prescriptions.length} issued
+          </span>
+        </div>
+
+        <div className="space-y-3.5">
+          {loading ? (
+            <div className="glass-card rounded-2xl border border-zinc-800/80 p-6 animate-pulse space-y-3">
+              <div className="h-3 w-40 bg-zinc-800 rounded-full" />
+              <div className="flex gap-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 w-28 bg-zinc-800 rounded-xl" />
+                ))}
+              </div>
+            </div>
+          ) : prescriptions.length === 0 ? (
+            <div className="glass-card rounded-2xl border border-zinc-800/80 overflow-hidden">
+              <EmptyState
+                icon="💊"
+                title="No prescriptions on file"
+                subtitle="Prescriptions issued by your doctor will appear here, each anchored to the Sepolia blockchain."
+              />
+            </div>
+          ) : (
+            prescriptions.map((p) => {
+              const txHash = p.blockchain_transactions?.[0]?.tx_hash;
+              return (
+                <div
+                  key={p.id}
+                  className="glass-card rounded-2xl p-5 border border-zinc-800/80 hover:border-purple-500/30 transition-all duration-300 space-y-4 shadow-xl"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-zinc-800/60 pb-3">
+                    <span className="text-zinc-400">
+                      Prescribed on{" "}
+                      <span className="font-semibold text-white">
+                        {new Date(p.issued_at).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </span>
+                    </span>
+                    <span className="text-[11px] font-mono text-zinc-600">
+                      Ref: {p.id.slice(0, 8)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+                      Medications
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.isArray(p.medications) &&
+                      p.medications.length > 0 ? (
+                        p.medications.map((m, idx) => (
+                          <div
+                            key={idx}
+                            className="px-3 py-1.5 bg-zinc-900/90 border border-zinc-700/80 rounded-xl text-xs flex items-center gap-1.5"
+                          >
+                            <span className="font-bold text-purple-300">
+                              {m.name}
+                            </span>
+                            <span className="text-zinc-500">·</span>
+                            <span className="text-zinc-400">{m.dosage}</span>
+                            <span className="text-zinc-500">·</span>
+                            <span className="text-blue-400">{m.frequency}</span>
+                            <span className="text-zinc-600 text-[10px]">
+                              {m.duration_days}d
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-zinc-500">
+                          No medication data available
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {p.notes && (
+                    <div className="text-xs text-zinc-300 bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/80">
+                      <span className="font-semibold text-zinc-400 block mb-1">
+                        Doctor&apos;s Instructions
+                      </span>
+                      {p.notes}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500 flex-wrap gap-2 pt-1 border-t border-zinc-800/60">
+                    <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Anchored on Sepolia
+                    </span>
+                    {txHash && (
+                      <a
+                        href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors"
+                      >
+                        tx: {txHash.slice(0, 10)}…{txHash.slice(-6)} ↗
+                      </a>
                     )}
                   </div>
                 </div>
-
-                {p.notes && (
-                  <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                    <span className="font-semibold text-slate-800">Doctor Instructions: </span>
-                    {p.notes}
-                  </p>
-                )}
-
-                {/* Audit & On-Chain Status */}
-                <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
-                  <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    <span>Sepolia Blockchain Anchored</span>
-                  </span>
-                  {txHash && (
-                    <a
-                      href={`https://sepolia.etherscan.io/tx/${txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-mono text-indigo-600 hover:underline truncate max-w-xs"
-                    >
-                      tx: {txHash}
-                    </a>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {prescriptions.length === 0 && (
-            <div className="p-6 text-center text-slate-400 text-sm bg-white rounded-xl border border-slate-200">
-              No prescriptions issued to you yet.
-            </div>
+              );
+            })
           )}
         </div>
       </section>
 
       {/* Medical Reports & AI Analysis */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-800">Medical Reports & AI Analysis</h2>
-        <ul className="divide-y rounded-xl border border-slate-200 bg-white shadow-sm">
-          {reports.map((r) => (
-            <li key={r.report_id} className="p-4 text-sm space-y-1">
-              <div className="flex justify-between items-start">
-                <span className="font-semibold text-slate-900">{r.title}</span>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
-                    r.blockchain_status === "confirmed"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "bg-amber-100 text-amber-800"
-                  }`}
-                >
-                  {r.blockchain_status ?? "not anchored"}
-                </span>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm">
+              📑
+            </span>
+            Medical Reports &amp; AI Analysis
+          </h2>
+          <span className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full font-medium">
+            {reports.length} report{reports.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        <div className="glass-card rounded-2xl border border-zinc-800/80 divide-y divide-zinc-800/60 overflow-hidden shadow-xl">
+          {loading ? (
+            <div className="p-6 space-y-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="animate-pulse space-y-2">
+                  <div className="h-3.5 w-44 bg-zinc-800 rounded-full" />
+                  <div className="h-2.5 w-32 bg-zinc-800 rounded-full" />
+                  <div className="h-12 w-full bg-zinc-800/60 rounded-xl" />
+                </div>
+              ))}
+            </div>
+          ) : reports.length === 0 ? (
+            <EmptyState
+              icon="📑"
+              title="No reports uploaded yet"
+              subtitle="Use the form below to upload a document — it will be automatically analyzed by AI and anchored on Sepolia."
+            />
+          ) : (
+            reports.map((r) => (
+              <div
+                key={r.report_id}
+                className="p-5 space-y-3 hover:bg-zinc-900/30 transition-colors"
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <h3 className="font-bold text-white text-sm">{r.title}</h3>
+                    <span className="text-[11px] text-zinc-500 capitalize mt-0.5 block">
+                      {r.report_type?.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <span
+                    className={`flex-shrink-0 text-xs px-2.5 py-1 rounded-full capitalize font-semibold border ${
+                      r.blockchain_status === "confirmed"
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                        : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                    }`}
+                  >
+                    {r.blockchain_status ?? "pending"}
+                  </span>
+                </div>
+
+                {r.summary && (
+                  <div className="bg-purple-950/20 border border-purple-500/25 rounded-xl p-3.5 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-300">
+                      <span>🧠</span>
+                      <span>AI Summary</span>
+                    </div>
+                    <p className="text-zinc-300 text-xs leading-relaxed">
+                      {r.summary}
+                    </p>
+                  </div>
+                )}
+
+                {r.tx_hash && (
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1">
+                    <span className="font-mono">
+                      Hash:{" "}
+                      <span className="text-zinc-400">
+                        {r.file_hash?.slice(0, 16)}…
+                      </span>
+                    </span>
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${r.tx_hash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors"
+                    >
+                      View on Etherscan ↗
+                    </a>
+                  </div>
+                )}
               </div>
-              {r.summary && <p className="text-slate-600 text-xs mt-1 leading-relaxed">{r.summary}</p>}
-              {r.tx_hash && (
-                <p className="text-[11px] text-slate-400 font-mono truncate">
-                  tx: {r.tx_hash}
-                </p>
-              )}
-            </li>
-          ))}
-          {reports.length === 0 && <li className="p-4 text-slate-400 text-sm">No reports uploaded yet.</li>}
-        </ul>
+            ))
+          )}
+        </div>
       </section>
 
-      {/* Upload a New Report */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-800">Upload a New Report</h2>
-        <form onSubmit={handleUpload} className="space-y-3 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+      {/* Upload Form */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-sm">
+              📤
+            </span>
+            Upload a Medical Report
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1 ml-10">
+            Your report will be AI-analyzed and cryptographically anchored on Sepolia.
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleUpload}
+          className="glass-card border border-zinc-800/80 rounded-2xl p-6 shadow-xl space-y-5"
+        >
           <input type="hidden" name="patient_id" value={user?.id || ""} />
-          
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Report Title</label>
-            <input
-              name="title"
-              placeholder="e.g. Comprehensive Blood Test / Lipid Panel"
-              required
-              className="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                Report Title <span className="text-red-400">*</span>
+              </label>
+              <input
+                name="title"
+                placeholder="e.g. Lipid Panel, CBC, MRI Scan"
+                required
+                className="w-full glass-input rounded-xl p-2.5 text-xs bg-zinc-900/80 focus:ring-1 focus:ring-purple-500 focus:outline-none transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                Category
+              </label>
+              <select
+                name="report_type"
+                className="w-full glass-input rounded-xl p-2.5 text-xs bg-zinc-900/80 focus:ring-1 focus:ring-purple-500 focus:outline-none transition"
+              >
+                <option value="lab_result">Lab Result</option>
+                <option value="imaging">Imaging</option>
+                <option value="discharge_summary">Discharge Summary</option>
+                <option value="consultation_note">Consultation Note</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Report Category</label>
-            <select name="report_type" className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="lab_result">Lab Result</option>
-              <option value="imaging">Imaging</option>
-              <option value="discharge_summary">Discharge Summary</option>
-              <option value="consultation_note">Consultation Note</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Extracted Report Text (For RAG AI Contextual Analysis)
+            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+              Report Content{" "}
+              <span className="text-zinc-500 font-normal">(optional — paste lab values or notes for AI analysis)</span>
             </label>
             <textarea
               name="raw_text"
-              placeholder="Paste lab values or report text here (e.g. 'Cholesterol: 210 mg/dL, HDL: 45, LDL: 140, Triglycerides: 175')"
-              className="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g. Cholesterol: 210 mg/dL, HDL: 45, LDL: 140, Triglycerides: 175…"
+              className="w-full glass-input rounded-xl p-2.5 text-xs bg-zinc-900/80 focus:ring-1 focus:ring-purple-500 focus:outline-none transition"
               rows={3}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Document File</label>
+            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+              Attach File <span className="text-zinc-500 font-normal">(PDF or image)</span>{" "}
+              <span className="text-red-400">*</span>
+            </label>
             <input
               type="file"
               name="file"
               required
-              className="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              className="w-full text-xs text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-purple-500/10 file:text-purple-300 hover:file:bg-purple-500/20 file:cursor-pointer cursor-pointer transition"
             />
           </div>
 
           {uploadMessage && (
-            <p className="text-xs p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 font-medium">
-              {uploadMessage}
-            </p>
+            <div
+              className={`p-3.5 rounded-xl text-xs font-medium border flex items-start gap-2.5 ${
+                uploadMessage.type === "success"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                  : "bg-red-500/10 border-red-500/30 text-red-400"
+              }`}
+            >
+              <span>{uploadMessage.type === "success" ? "✅" : "⚠️"}</span>
+              <span>{uploadMessage.text}</span>
+            </div>
           )}
 
-          <div className="pt-1">
+          <div className="flex items-center gap-3 pt-1">
             <button
               disabled={uploading}
-              className="rounded-xl bg-indigo-600 text-white px-5 py-2.5 text-xs font-medium disabled:opacity-50 hover:bg-indigo-700 shadow-sm transition flex items-center gap-2"
+              className="rounded-xl bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-500 hover:from-purple-600 hover:to-blue-400 text-white px-6 py-2.5 text-xs font-semibold disabled:opacity-50 shadow-lg shadow-purple-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex items-center gap-2"
             >
               {uploading ? (
                 <>
-                  <span className="animate-spin">⏳</span>
-                  <span>Uploading, Analyzing & Anchoring...</span>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Uploading &amp; Analyzing…</span>
                 </>
               ) : (
                 <>
-                  <span>Upload & Analyze</span>
+                  <span>Upload &amp; Analyze</span>
                   <span>🧠</span>
                 </>
               )}
             </button>
+            {uploading && (
+              <span className="text-[11px] text-zinc-500">
+                AI analysis + blockchain anchoring may take 10–30s
+              </span>
+            )}
           </div>
         </form>
       </section>
-    </main>
+    </div>
   );
 }

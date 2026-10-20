@@ -143,4 +143,89 @@ router.post("/verify", async (req, res) => {
   res.json({ token, user: { id: user.id, role: user.role, full_name: user.full_name, wallet_address: wallet } });
 });
 
+/**
+ * DEMO / DEV LOGIN (NO METAMASK REQUIRED)
+ * Allows testing as Patient, Doctor, or Admin without needing a browser extension.
+ */
+router.post("/demo", async (req, res) => {
+  const schema = z.object({
+    role: z.enum(["patient", "doctor", "admin"]).default("patient"),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid role" });
+
+  const role = parsed.data.role;
+
+  // Look for existing user with this role (e.g. from seed.sql)
+  let { data: user, error: userErr } = await supabaseAdmin
+    .from("users")
+    .select("*")
+    .eq("role", role)
+    .limit(1)
+    .maybeSingle();
+
+  if (userErr) return res.status(500).json({ error: userErr.message });
+
+  if (!user) {
+    const demoWallets: Record<string, string> = {
+      admin: "0x111111111111111111111111111111111111aaaa",
+      doctor: "0x222222222222222222222222222222222222bbbb",
+      patient: "0x333333333333333333333333333333333333cccc",
+    };
+    const demoNames: Record<string, string> = {
+      admin: "Alice Admin (Demo)",
+      doctor: "Dr. Bob Rao (Demo)",
+      patient: "Chitra Menon (Demo)",
+    };
+
+    const wallet = demoWallets[role];
+    const name = demoNames[role];
+
+    const { data: created, error: createErr } = await supabaseAdmin
+      .from("users")
+      .upsert({
+        wallet_address: wallet,
+        role,
+        full_name: name,
+      })
+      .select()
+      .single();
+
+    if (createErr) return res.status(500).json({ error: createErr.message });
+    user = created;
+
+    if (role === "doctor") {
+      await supabaseAdmin.from("doctor_profiles").upsert({
+        user_id: user.id,
+        specialization: "Cardiology",
+        license_number: "LIC-DEMO-001",
+        years_experience: 10,
+        consultation_fee: 150.0,
+      });
+    } else if (role === "patient") {
+      await supabaseAdmin.from("patient_profiles").upsert({
+        user_id: user.id,
+        date_of_birth: "1990-04-12",
+        blood_group: "O+",
+      });
+    }
+  }
+
+  const token = issueAppJwt({
+    app_user_id: user.id,
+    app_role: user.role,
+    wallet_address: user.wallet_address,
+  });
+
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      role: user.role,
+      full_name: user.full_name,
+      wallet_address: user.wallet_address,
+    },
+  });
+});
+
 export default router;

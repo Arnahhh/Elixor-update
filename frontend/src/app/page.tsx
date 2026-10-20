@@ -5,98 +5,438 @@ import { useRouter } from "next/navigation";
 import { useWalletAuth } from "../hooks/useWalletAuth";
 
 export default function LoginPage() {
-  const { connectAndSignIn, loading, error } = useWalletAuth();
+  const { connectAndSignIn, connectWithBurnerWallet, loginWithDemoRole, loading, error } = useWalletAuth();
   const [showAdminInput, setShowAdminInput] = useState(false);
   const [adminKey, setAdminKey] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
 
-  const handleConnect = async () => {
-    const keyToPass = showAdminInput && adminKey.trim() ? adminKey.trim() : undefined;
-    const user = await connectAndSignIn(keyToPass).catch(() => null);
+  const handleRoute = (user: any) => {
     if (!user) return;
     if (user.role === "doctor") router.push("/doctor");
     else if (user.role === "admin") router.push("/admin");
     else router.push("/patient");
   };
 
+  const handleConnect = async () => {
+    const keyToPass = showAdminInput && adminKey.trim() ? adminKey.trim() : undefined;
+    const user = await connectAndSignIn(keyToPass).catch(() => null);
+    handleRoute(user);
+  };
+
+  const handleBurnerLogin = async () => {
+    const keyToPass = showAdminInput && adminKey.trim() ? adminKey.trim() : undefined;
+    const user = await connectWithBurnerWallet(keyToPass).catch(() => null);
+    handleRoute(user);
+  };
+
+  const handleDemoLogin = async (role: "patient" | "doctor" | "admin") => {
+    const user = await loginWithDemoRole(role).catch(() => null);
+    handleRoute(user);
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-12 bg-slate-50">
-      <div className="text-center max-w-md">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-full text-indigo-700 text-xs font-semibold mb-3">
-          <span>⛓️ Web3 Decoupled Healthcare Identity</span>
+    <div className="min-h-screen bg-[#030712] text-zinc-100 flex flex-col justify-between selection:bg-purple-600/30">
+      {/* Floating Pill Navbar with Mobile Menu (Altherix Style) */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center px-4 pt-4">
+        <div className="max-w-6xl w-full glass-card rounded-2xl px-5 py-3.5 flex items-center justify-between border border-zinc-800/80 shadow-2xl backdrop-blur-xl bg-zinc-950/85">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white font-black text-sm shadow-md">
+              🩺
+            </div>
+            <a href="/" className="font-extrabold text-base tracking-wider text-white hover:text-purple-400 transition-colors">
+              ELIXOR
+            </a>
+          </div>
+
+          <div className="hidden md:flex items-center gap-7 text-xs font-semibold text-zinc-400">
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <a href="#workflows" className="hover:text-white transition-colors">Workflows</a>
+            <a href="#architecture" className="hover:text-white transition-colors">Architecture</a>
+            <a href="#security" className="hover:text-white transition-colors">Security</a>
+            <a href="#faqs" className="hover:text-white transition-colors">FAQs</a>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleConnect}
+              disabled={loading}
+              className="hidden sm:inline-flex text-xs font-semibold px-4 py-2 rounded-xl bg-gradient-to-r from-purple-800 via-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white shadow-md hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50"
+            >
+              {loading ? "Authenticating..." : "Connect Wallet 🦊"}
+            </button>
+
+            {/* Mobile Hamburger Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white"
+              aria-label="Toggle navigation menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">HealthChain</h1>
-        <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-          Sign in with your Ethereum wallet. No passwords — your cryptographic signature proves who you are, verified
-          against a single-use nonce for database-level Row-Level Security.
-        </p>
-      </div>
 
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
-        <button
-          onClick={handleConnect}
-          disabled={loading}
-          className="w-full rounded-xl bg-indigo-600 px-6 py-3 text-white font-medium shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition flex items-center justify-center gap-2 text-sm"
-        >
-          {loading ? (
-            <>
-              <span className="animate-spin">⏳</span>
-              <span>Waiting for Wallet Signature...</span>
-            </>
-          ) : (
-            <>
-              <span>Connect Wallet & Sign In</span>
-              <span>🦊</span>
-            </>
-          )}
-        </button>
-
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs text-center font-medium">
-            ⚠️ {error}
+        {/* Mobile Dropdown Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed top-20 inset-x-4 glass-card bg-zinc-950/95 border border-zinc-800 rounded-2xl p-5 shadow-2xl backdrop-blur-2xl flex flex-col gap-3 z-50 animate-in fade-in slide-in-from-top-2">
+            <a href="#features" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">Features</a>
+            <a href="#workflows" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">Workflows</a>
+            <a href="#architecture" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">Architecture</a>
+            <a href="#security" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">Security</a>
+            <a href="#faqs" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-zinc-300 font-medium hover:text-white">FAQs</a>
+            <button
+              onClick={() => { setMobileMenuOpen(false); handleConnect(); }}
+              className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-purple-800 to-blue-500 text-white font-semibold text-xs shadow-md"
+            >
+              Connect Wallet 🦊
+            </button>
           </div>
         )}
+      </nav>
 
-        {/* Collapsible Admin Setup Passcode Section (Method 2) */}
-        <div className="border-t border-slate-100 pt-3">
+      {/* Hero & Login Section */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 pt-32 pb-20 max-w-6xl mx-auto w-full">
+        {/* Top Announcement Badge */}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold mb-6 shadow-sm backdrop-blur-sm animate-pulse-slow">
+          <span className="flex h-2 w-2 rounded-full bg-purple-400"></span>
+          <span>Web3 Identity · Zero-Knowledge Audit · In-Database RAG</span>
+        </div>
+
+        {/* Hero Headlines */}
+        <div className="text-center max-w-3xl mb-12">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.12] mb-6">
+            ELIXOR <br />
+            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Healthcare Environment
+            </span>
+            <br></br>
+            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            
+            </span>
+          </h1>
+          <p className="text-sm sm:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+            Secured by Ethereum wallet challenge authentication, smart contract document anchoring on Sepolia, and longitudinal AI clinical decision support.
+          </p>
+        </div>
+
+        {/* Auth Centerpiece Card */}
+        <div className="w-full max-w-lg glass-card rounded-3xl p-6 sm:p-8 border border-zinc-800/80 shadow-2xl backdrop-blur-2xl hover:border-purple-500/40 transition-all duration-500 space-y-6">
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-white tracking-tight">Access HealthChain</h2>
+            <p className="text-xs text-zinc-400 mt-1">Cryptographic challenge verification · No passwords required</p>
+          </div>
+
+          {/* Primary MetaMask Option */}
           <button
-            type="button"
-            onClick={() => setShowAdminInput(!showAdminInput)}
-            className="text-xs text-slate-500 hover:text-slate-800 transition flex items-center justify-between w-full font-medium"
+            onClick={handleConnect}
+            disabled={loading}
+            className="w-full rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-500 hover:from-purple-600 hover:to-blue-400 text-white font-semibold py-3.5 px-6 shadow-xl shadow-purple-900/30 hover:shadow-purple-700/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-3 text-sm disabled:opacity-50"
           >
-            <span>🔐 Admin Registration / Setup</span>
-            <span className="text-[11px] text-indigo-600">{showAdminInput ? "Hide ▲" : "Enter Passcode ▼"}</span>
+            {loading ? (
+              <>
+                <span className="animate-spin text-base">⏳</span>
+                <span>Authenticating with Wallet...</span>
+              </>
+            ) : (
+              <>
+                <span className="text-base">🦊</span>
+                <span>Connect MetaMask &amp; Sign In</span>
+              </>
+            )}
           </button>
 
-          {showAdminInput && (
-            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
-              <label className="block font-semibold text-slate-700">
-                Admin Registration Passcode:
-              </label>
-              <input
-                type="password"
-                placeholder="Enter ADMIN_REGISTRATION_KEY"
-                value={adminKey}
-                onChange={(e) => setAdminKey(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <p className="text-[11px] text-slate-500">
-                If provided, matching the backend <code className="bg-slate-200 px-1 rounded">ADMIN_REGISTRATION_KEY</code> assigns or elevates your wallet to the <span className="font-semibold text-indigo-700">admin</span> role. Leave blank for standard patient/doctor access.
-              </p>
+          {/* Divider */}
+          <div className="relative flex items-center justify-center my-2">
+            <div className="border-t border-zinc-800 w-full"></div>
+            <span className="bg-[#030712] px-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-widest whitespace-nowrap">
+              Or Explore Without An Extension
+            </span>
+          </div>
+
+          {/* 1-Click Interactive Demo Profiles */}
+          <div className="space-y-2.5">
+            <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider text-center">
+              Role-Based Demonstration Profiles:
+            </p>
+            <div className="grid grid-cols-3 gap-2.5">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleDemoLogin("patient")}
+                className="p-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium transition-all duration-300 flex flex-col items-center gap-1.5 text-center shadow-md hover:border-emerald-500/60 hover:scale-105 disabled:opacity-50 group"
+              >
+                <span className="text-lg group-hover:scale-110 transition-transform">🧑‍⚕️</span>
+                <span className="font-bold text-white">Patient</span>
+                <span className="text-[10px] text-emerald-400/90 font-mono truncate max-w-full">Chitra Menon</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleDemoLogin("doctor")}
+                className="p-3 rounded-2xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-medium transition-all duration-300 flex flex-col items-center gap-1.5 text-center shadow-md hover:border-blue-500/60 hover:scale-105 disabled:opacity-50 group"
+              >
+                <span className="text-lg group-hover:scale-110 transition-transform">🩺</span>
+                <span className="font-bold text-white">Doctor</span>
+                <span className="text-[10px] text-blue-400/90 font-mono truncate max-w-full">Dr. Bob Rao</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleDemoLogin("admin")}
+                className="p-3 rounded-2xl border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-medium transition-all duration-300 flex flex-col items-center gap-1.5 text-center shadow-md hover:border-purple-500/60 hover:scale-105 disabled:opacity-50 group"
+              >
+                <span className="text-lg group-hover:scale-110 transition-transform">🛡️</span>
+                <span className="font-bold text-white">Admin</span>
+                <span className="text-[10px] text-purple-400/90 font-mono truncate max-w-full">Alice Admin</span>
+              </button>
+            </div>
+          </div>
+
+          {/* In-Browser Burner Wallet Button */}
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleBurnerLogin}
+            className="w-full rounded-2xl border border-zinc-700/80 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 hover:text-white py-2.5 px-4 text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:border-zinc-500 disabled:opacity-50"
+          >
+            <span>⚡ Launch Instant Demo Session (In-Browser Web3 Keypair)</span>
+          </button>
+
+          {/* Error Message */}
+          {error && (
+            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-xs text-center font-medium animate-in fade-in">
+              ⚠️ {error}
             </div>
           )}
-        </div>
-      </div>
 
-      <div className="max-w-md w-full text-xs text-slate-500 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-        <p className="font-semibold text-slate-700 mb-2">How Authentication Works:</p>
-        <ol className="space-y-1.5 list-decimal list-inside text-slate-600">
-          <li>Connect MetaMask (reads public address)</li>
-          <li>Sign an off-chain EIP-4361 challenge statement (free, no gas)</li>
-          <li>Backend recovers address via <code className="text-slate-700">ethers.verifyMessage</code> and consumes nonce</li>
-          <li>Issues role-scoped JWT matching Supabase RLS policies</li>
-        </ol>
-      </div>
-    </main>
+          {/* Collapsible Admin Setup Passcode Section */}
+          <div className="border-t border-zinc-800/80 pt-3">
+            <button
+              type="button"
+              onClick={() => setShowAdminInput(!showAdminInput)}
+              className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors flex items-center justify-between w-full font-medium py-1"
+            >
+              <span>🔐 Authorized Facility &amp; Administrator Passcode</span>
+              <span className="text-[11px] text-purple-400 font-semibold">{showAdminInput ? "Hide ▲" : "Enter Passcode ▼"}</span>
+            </button>
+
+            {showAdminInput && (
+              <div className="mt-3 p-3.5 bg-zinc-950/60 border border-zinc-800 rounded-2xl space-y-2 text-xs">
+                <label className="block font-semibold text-zinc-300">
+                  Security Passcode:
+                </label>
+                <input
+                  type="password"
+                  placeholder="Enter administrator authorization token"
+                  value={adminKey}
+                  onChange={(e) => setAdminKey(e.target.value)}
+                  className="w-full glass-input rounded-xl p-2.5 text-xs bg-zinc-900/80 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                <p className="text-[11px] text-zinc-400">
+                  Authorizes administrator permissions on database session tokens for cross-facility metrics.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section 1: Core Architectural Pillars (#features) */}
+        <section id="features" className="w-full mt-28 pt-12 border-t border-zinc-800/80 scroll-mt-24">
+          <div className="text-center mb-12">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2">Core Platform Capabilities</h2>
+            <p className="text-2xl sm:text-3xl font-black text-white">Engineered for Clinical Privacy, Integrity &amp; Speed</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 hover:border-blue-500/50 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+                🔑
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Passwordless Web3 Identity</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Users authenticate using their Ethereum public address via EIP-4361 cryptographic challenge nonces. Passwords and credentials never cross the wire.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 hover:border-purple-500/50 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+                ⛓️
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Zero-Knowledge On-Chain Proofs</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Deterministic SHA-256 digests of clinical files and prescriptions are permanently anchored to Ethereum Sepolia. Sensitive health records remain fully private off-chain.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 hover:border-pink-500/50 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+                🧠
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Clinical Narrative AI &amp; RAG</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Uploaded diagnostic records are transformed into dense vector representations to retrieve patient longitudinal history, surfacing laboratory trends and anomaly flags.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 2: The Three Core Workflows (#workflows) */}
+        <section id="workflows" className="w-full mt-24 scroll-mt-24">
+          <div className="text-center mb-12">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-blue-400 mb-2">End-to-End Execution Flow</h2>
+            <p className="text-2xl sm:text-3xl font-black text-white">How HealthChain Operates</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 space-y-3">
+              <div className="text-xs font-mono font-bold text-purple-400">STAGE 01</div>
+              <h3 className="text-base font-bold text-white">Cryptographic Challenge</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Client requests an ephemeral single-use nonce. User signs the human-readable statement via wallet. Backend recovers the signer address and mints role-scoped session tokens.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 space-y-3">
+              <div className="text-xs font-mono font-bold text-blue-400">STAGE 02</div>
+              <h3 className="text-base font-bold text-white">Document Ingestion &amp; Synthesis</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Diagnostic files are encrypted and uploaded to private bucket storage. Clinical narratives are parsed and evaluated against patient history to flag abnormalities and recommendations.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 space-y-3">
+              <div className="text-xs font-mono font-bold text-emerald-400">STAGE 03</div>
+              <h3 className="text-base font-bold text-white">Sepolia Smart Contract Anchor</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                A cryptographic SHA-256 fingerprint is committed to the <code className="text-zinc-300">MedicalAudit.sol</code> contract on Ethereum, producing a tamper-proof timestamp verifiable on Etherscan.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 3: Architecture & Relational Engineering (#architecture) */}
+        <section id="architecture" className="w-full mt-24 glass-card rounded-3xl p-8 border border-zinc-800/80 scroll-mt-24">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Enterprise Database Architecture</span>
+              <h3 className="text-xl sm:text-2xl font-bold text-white mt-1">Third Normal Form (3NF) &amp; Automated Audit Capture</h3>
+              <p className="text-xs text-zinc-400 mt-2 max-w-2xl leading-relaxed">
+                Physician and patient profiles are decoupled into 1:1 extension tables. Automated PostgreSQL triggers capture every state change into append-only audit tables with full JSON diffs.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-3 py-1 rounded-full text-xs font-mono bg-zinc-900 border border-zinc-700 text-zinc-300">3NF Schema</span>
+              <span className="px-3 py-1 rounded-full text-xs font-mono bg-zinc-900 border border-zinc-700 text-zinc-300">Automated Triggers</span>
+              <span className="px-3 py-1 rounded-full text-xs font-mono bg-zinc-900 border border-zinc-700 text-zinc-300">Analytical Views</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 4: Security & Privacy Alignment (#security) */}
+        <section id="security" className="w-full mt-20 scroll-mt-24">
+          <div className="text-center mb-10">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-cyan-400 mb-2">Compliance &amp; Data Security</h2>
+            <p className="text-2xl sm:text-3xl font-black text-white">Why Protected Health Information Never Touches Blockchain</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 space-y-2.5">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>🛡️</span> Zero-Knowledge Verification
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Publishing raw medical reports on a public blockchain violates HIPAA and GDPR standards. HealthChain anchors only fixed 32-byte mathematical hashes, enabling public verification of document integrity without revealing patient names or diagnoses.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-6 border border-zinc-800/80 space-y-2.5">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>🔒</span> Row-Level Security Enforced in PostgreSQL
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Access control is not enforced by vulnerable client-side conditional checks. Every SQL query is filtered by database engine policies that evaluate user IDs and clinical roles directly against cryptographic JWT claims.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 5: Frequently Asked Questions (#faqs) */}
+        <section id="faqs" className="w-full mt-24 scroll-mt-24">
+          <div className="text-center mb-10">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2">Clinical &amp; Technical Questions</h2>
+            <p className="text-2xl sm:text-3xl font-black text-white">Frequently Asked Questions</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+            <div className="glass-card rounded-2xl p-5 border border-zinc-800/80 space-y-2">
+              <h3 className="text-sm font-bold text-white">Do patients need to pay Ethereum gas fees?</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                No. Patient login is handled via EIP-4361 off-chain signatures which cost zero gas. When lab reports or prescriptions are anchored, transactions are submitted by authorized backend relayers.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-5 border border-zinc-800/80 space-y-2">
+              <h3 className="text-sm font-bold text-white">What happens if a document is altered?</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Even a single altered character in a lab report produces a completely different SHA-256 fingerprint. The on-chain <code className="text-zinc-300">verifyRecord()</code> function will instantly identify tampering.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-5 border border-zinc-800/80 space-y-2">
+              <h3 className="text-sm font-bold text-white">How does the clinical AI decision support work?</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                The platform vectors clinical narratives using Ollama or OpenAI embeddings, queries past patient reports via PostgreSQL vector similarity, and generates structured summaries for licensed doctors to review.
+              </p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-5 border border-zinc-800/80 space-y-2">
+              <h3 className="text-sm font-bold text-white">Can doctors access records for any patient?</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                No. PostgreSQL Row-Level Security policies strictly restrict clinician access to patients with whom they have an active scheduled appointment or direct consultation relationship.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Complete Enterprise Footer */}
+      <footer className="border-t border-zinc-800/80 py-10 px-4 text-xs text-zinc-500 bg-[#030712]/95 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-3 text-center sm:text-left">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                🩺
+              </div>
+              <span className="font-bold text-zinc-200">HealthChain Platform</span>
+            </div>
+            <span className="hidden sm:inline">·</span>
+            <span>Decentralized Healthcare Management Infrastructure</span>
+          </div>
+
+          <div className="flex items-center gap-6 text-zinc-400 flex-wrap justify-center">
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <a href="#workflows" className="hover:text-white transition-colors">Workflows</a>
+            <a href="#architecture" className="hover:text-white transition-colors">Architecture</a>
+            <a href="#security" className="hover:text-white transition-colors">Security</a>
+            <a href="#faqs" className="hover:text-white transition-colors">FAQs</a>
+          </div>
+
+          <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-500">
+            <span>Sepolia Testnet</span>
+            <span>·</span>
+            <span>EVM Compatible</span>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

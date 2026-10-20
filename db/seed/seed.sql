@@ -4,10 +4,10 @@
 -- =====================================================================
 
 insert into users (id, wallet_address, role, full_name, email) values
-    ('11111111-1111-1111-1111-111111111111', '0x1111111111111111111111111111111111aaaa', 'admin',   'Alice Admin',  'admin@healthchain.dev'),
-    ('22222222-2222-2222-2222-222222222222', '0x2222222222222222222222222222222222bbbb', 'doctor',  'Dr. Bob Rao',  'bob@healthchain.dev'),
-    ('33333333-3333-3333-3333-333333333333', '0x3333333333333333333333333333333333cccc', 'patient', 'Chitra Menon', 'chitra@healthchain.dev'),
-    ('44444444-4444-4444-4444-444444444444', '0x4444444444444444444444444444444444dddd', 'patient', 'Dev Kumar',    'dev@healthchain.dev');
+    ('11111111-1111-1111-1111-111111111111', '0x111111111111111111111111111111111111aaaa', 'admin',   'Alice Admin',  'admin@healthchain.dev'),
+    ('22222222-2222-2222-2222-222222222222', '0x222222222222222222222222222222222222bbbb', 'doctor',  'Dr. Bob Rao',  'bob@healthchain.dev'),
+    ('33333333-3333-3333-3333-333333333333', '0x333333333333333333333333333333333333cccc', 'patient', 'Chitra Menon', 'chitra@healthchain.dev'),
+    ('44444444-4444-4444-4444-444444444444', '0x444444444444444444444444444444444444dddd', 'patient', 'Dev Kumar',    'dev@healthchain.dev');
 
 insert into doctor_profiles (user_id, specialization, license_number, years_experience, consultation_fee) values
     ('22222222-2222-2222-2222-222222222222', 'Cardiology', 'LIC-2024-0091', 12, 500.00);
